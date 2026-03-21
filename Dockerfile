@@ -1,13 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Устанавливаем Rust (на случай, если нужно)
-RUN apt-get update && apt-get install -y curl build-essential
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Устанавливаем build-essential (на случай если понадобится)
+RUN apt-get update && apt-get install -y build-essential
 
-# Копируем зависимости
+# Копируем зависимости и устанавливаем
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
