@@ -463,9 +463,9 @@ async def cmd_start(message: Message, state: FSMContext):
     keyboard = get_main_keyboard(user_id, username, first_name, last_name)
     
     await message.answer(
-        "Добрых суток дорогой друг!\n\n"
-        "В нашем магазине ты сможешь присмотреть для себя различные товары. "
-        "Но сначала выбери город который тебя интересует в приложении сверху)",
+        "Здравствуйте!\n\n"
+        "В нашем магазине вы сможете найти все, что скрасит ваши будни "
+        "Оформление заказа происходит через Mini App в боте.",
         reply_markup=keyboard
     )
 
