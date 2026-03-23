@@ -1,4 +1,4 @@
-import logging
+=import logging
 import sqlite3
 import json
 import os
@@ -25,6 +25,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 # Игнорируем предупреждения
 import warnings
@@ -169,87 +170,205 @@ def init_shop_database():
 init_shop_database()
 
 # ========== ФУНКЦИИ ДЛЯ РАБОТЫ С АДМИНИСТРАТОРАМИ ==========
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("⚠️ Supabase не настроен! Администраторы будут работать через локальную БД.")
+    supabase = None
+else:
+    try:
+        from supabase import create_client, Client
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Supabase подключен для управления администраторами")
+    except Exception as e:
+        print(f"❌ Ошибка подключения к Supabase: {e}")
+        supabase = None
+
+# ========== ФУНКЦИИ ДЛЯ РАБОТЫ С АДМИНИСТРАТОРАМИ ==========
 def get_all_admins():
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, username, can_respond, can_view_orders, can_view_history FROM admins WHERE is_active = 1")
-    admins = cursor.fetchall()
-    conn.close()
-    return admins
+    """Получить список всех активных администраторов"""
+    if not supabase:
+        # fallback на локальную БД
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id, username, can_respond, can_view_orders, can_view_history FROM admins WHERE is_active = 1")
+            admins = cursor.fetchall()
+            conn.close()
+            return admins
+        except Exception as e:
+            print(f"Ошибка чтения локальной БД: {e}")
+            return []
+    
+    try:
+        response = supabase.table('admins').select('user_id, username, can_respond, can_view_orders, can_view_history').eq('is_active', True).execute()
+        return [(a['user_id'], a['username'], a['can_respond'], a['can_view_orders'], a['can_view_history']) for a in response.data]
+    except Exception as e:
+        print(f"Ошибка получения администраторов из Supabase: {e}")
+        return []
 
 def get_admin_ids():
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM admins WHERE is_active = 1")
-    ids = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return ids
+    """Получить список ID всех активных администраторов"""
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM admins WHERE is_active = 1")
+            ids = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return ids
+        except:
+            return []
+    
+    try:
+        response = supabase.table('admins').select('user_id').eq('is_active', True).execute()
+        return [a['user_id'] for a in response.data]
+    except Exception as e:
+        print(f"Ошибка получения ID администраторов: {e}")
+        return []
 
 def is_admin(user_id: int) -> bool:
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM admins WHERE user_id = ? AND is_active = 1", (user_id,))
-    result = cursor.fetchone() is not None
-    conn.close()
-    return result
+    """Проверяет, является ли пользователь активным администратором"""
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id FROM admins WHERE user_id = ? AND is_active = 1", (user_id,))
+            result = cursor.fetchone() is not None
+            conn.close()
+            return result
+        except:
+            return False
+    
+    try:
+        response = supabase.table('admins').select('user_id').eq('user_id', user_id).eq('is_active', True).execute()
+        return len(response.data) > 0
+    except Exception as e:
+        print(f"Ошибка проверки администратора: {e}")
+        return False
 
 def is_super_admin(user_id: int) -> bool:
+    """Проверяет, является ли пользователь главным администратором"""
     return user_id == SUPER_ADMIN_ID
 
 def get_admin_permissions(user_id: int):
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute("SELECT can_respond, can_view_orders, can_view_history FROM admins WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    if result:
-        return {'respond': bool(result[0]), 'orders': bool(result[1]), 'history': bool(result[2])}
-    return {'respond': False, 'orders': False, 'history': False}
+    """Получить права администратора"""
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute("SELECT can_respond, can_view_orders, can_view_history FROM admins WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            conn.close()
+            if result:
+                return {'respond': bool(result[0]), 'orders': bool(result[1]), 'history': bool(result[2])}
+            return {'respond': False, 'orders': False, 'history': False}
+        except:
+            return {'respond': False, 'orders': False, 'history': False}
+    
+    try:
+        response = supabase.table('admins').select('can_respond, can_view_orders, can_view_history').eq('user_id', user_id).execute()
+        if response.data:
+            a = response.data[0]
+            return {'respond': a['can_respond'], 'orders': a['can_view_orders'], 'history': a['can_view_history']}
+        return {'respond': False, 'orders': False, 'history': False}
+    except Exception as e:
+        print(f"Ошибка получения прав администратора: {e}")
+        return {'respond': False, 'orders': False, 'history': False}
 
 def add_admin(user_id: int, username: str, added_by: int):
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO admins (user_id, username, added_by, added_date, is_active) VALUES (?, ?, ?, ?, 1)",
-        (user_id, username, added_by, datetime.now().isoformat())
-    )
-    conn.commit()
-    conn.close()
+    """Добавить нового администратора"""
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO admins (user_id, username, added_by, added_date, is_active) VALUES (?, ?, ?, ?, 1)",
+                (user_id, username, added_by, datetime.now().isoformat())
+            )
+            conn.commit()
+            conn.close()
+            print(f"✅ Администратор {user_id} добавлен в локальную БД")
+        except Exception as e:
+            print(f"Ошибка добавления в локальную БД: {e}")
+        return
+    
+    try:
+        supabase.table('admins').upsert({
+            'user_id': user_id,
+            'username': username,
+            'added_by': added_by,
+            'added_date': datetime.now().isoformat(),
+            'is_active': True
+        }).execute()
+        print(f"✅ Администратор {user_id} добавлен в Supabase")
+    except Exception as e:
+        print(f"Ошибка добавления администратора в Supabase: {e}")
 
 def remove_admin(user_id: int):
+    """Удалить администратора (деактивировать)"""
     if user_id == SUPER_ADMIN_ID:
+        print("❌ Нельзя удалить главного администратора")
         return False
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE admins SET is_active = 0 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-    return True
+    
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE admins SET is_active = 0 WHERE user_id = ?", (user_id,))
+            conn.commit()
+            conn.close()
+            print(f"✅ Администратор {user_id} деактивирован в локальной БД")
+            return True
+        except Exception as e:
+            print(f"Ошибка деактивации в локальной БД: {e}")
+            return False
+    
+    try:
+        supabase.table('admins').update({'is_active': False}).eq('user_id', user_id).execute()
+        print(f"✅ Администратор {user_id} деактивирован в Supabase")
+        return True
+    except Exception as e:
+        print(f"Ошибка деактивации администратора: {e}")
+        return False
 
 def update_admin_permissions(user_id: int, can_respond=None, can_view_orders=None, can_view_history=None):
+    """Обновить права администратора"""
     if user_id == SUPER_ADMIN_ID:
+        print("❌ Нельзя изменять права главного администратора")
         return
-    conn = sqlite3.connect(ADMINS_DB)
-    cursor = conn.cursor()
     
-    updates = []
-    params = []
+    updates = {}
     if can_respond is not None:
-        updates.append("can_respond = ?")
-        params.append(1 if can_respond else 0)
+        updates['can_respond'] = can_respond
     if can_view_orders is not None:
-        updates.append("can_view_orders = ?")
-        params.append(1 if can_view_orders else 0)
+        updates['can_view_orders'] = can_view_orders
     if can_view_history is not None:
-        updates.append("can_view_history = ?")
-        params.append(1 if can_view_history else 0)
+        updates['can_view_history'] = can_view_history
     
-    if updates:
-        query = f"UPDATE admins SET {', '.join(updates)} WHERE user_id = ?"
-        params.append(user_id)
-        cursor.execute(query, params)
-        conn.commit()
-    conn.close()
+    if not updates:
+        return
+    
+    if not supabase:
+        try:
+            conn = sqlite3.connect(ADMINS_DB)
+            cursor = conn.cursor()
+            set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+            query = f"UPDATE admins SET {set_clause} WHERE user_id = ?"
+            cursor.execute(query, list(updates.values()) + [user_id])
+            conn.commit()
+            conn.close()
+            print(f"✅ Права администратора {user_id} обновлены в локальной БД")
+        except Exception as e:
+            print(f"Ошибка обновления прав в локальной БД: {e}")
+        return
+    
+    try:
+        supabase.table('admins').update(updates).eq('user_id', user_id).execute()
+        print(f"✅ Права администратора {user_id} обновлены в Supabase")
+    except Exception as e:
+        print(f"Ошибка обновления прав: {e}")
 
 # ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ПРОМОКОДАМИ ==========
 def generate_promocode(length=8):
