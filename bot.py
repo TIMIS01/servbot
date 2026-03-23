@@ -42,7 +42,7 @@ WEBHOOK_URL = "https://tg-shop-server.onrender.com"
 
 # ========== ТОВАРЫ И ГОРОДА ==========
 CITIES = [
-    "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
+    "Москва и область", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
     "Нижний Новгород", "Челябинск", "Самара", "Омск", "Ростов-на-Дону",
     "Уфа", "Красноярск", "Воронеж", "Пермь", "Волгоград"
 ]
@@ -505,7 +505,7 @@ def get_main_keyboard(user_id=None, username=None, first_name=None, last_name=No
     base_url = "https://timis01.github.io/miniappss/"
     
     if user_id:
-        web_app_url = f"{base_url}?city=Москва&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
+        web_app_url = f"{base_url}?city=Москва и область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
     else:
         web_app_url = base_url
     
@@ -590,7 +590,7 @@ async def cmd_start(message: Message, state: FSMContext):
 
 async def open_shop(message: Message, state: FSMContext):
     data = await state.get_data()
-    city = data.get('selected_city', 'Москва')
+    city = data.get('selected_city', 'Москва и область')
     
     import urllib.parse
     encoded_city = urllib.parse.quote(city)
