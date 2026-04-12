@@ -506,11 +506,16 @@ def get_main_keyboard(user_id=None, username=None, first_name=None, last_name=No
     import urllib.parse
     base_url = "https://timis01.github.io/miniappss/"
     
-    # Если есть user_id, добавляем параметры в URL
-    if user_id:
-        web_app_url = f"{base_url}?city=Москва%20и%20область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
-    else:
-        web_app_url = base_url
+    # Всегда добавляем параметры, даже если user_id нет (используем заглушку)
+    # Это гарантирует, что кнопка всегда будет с WebApp
+    if not user_id:
+        # Для новых пользователей, у которых ещё нет ID в боте
+        user_id = "new_user"
+        username = username or ""
+        first_name = first_name or "Гость"
+        last_name = last_name or ""
+    
+    web_app_url = f"{base_url}?city=Москва%20и%20область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
     
     return ReplyKeyboardMarkup(
         keyboard=[
