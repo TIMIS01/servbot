@@ -1,5 +1,7 @@
 import logging
 import sqlite3
+from flask import Flask
+from threading import Thread
 import json
 import os
 import asyncio
@@ -504,10 +506,8 @@ def get_main_keyboard(user_id=None, username=None, first_name=None, last_name=No
     import urllib.parse
     base_url = "https://timis01.github.io/miniappss/"
     
-    if user_id:
-        web_app_url = f"{base_url}?city=Москва и область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
-    else:
-        web_app_url = base_url
+    # Убираем параметры из URL — просто базовая ссылка
+    web_app_url = base_url
     
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -2308,6 +2308,24 @@ async def main():
     finally:
         print("🛑 Бот остановлен")
 
+# ========== HEALTH CHECK ДЛЯ RENDER ==========
+health_app = Flask('')
+
+@health_app.route('/')
+@health_app.route('/health')
+@health_app.route('/healthcheck')
+def health():
+    return "Bot is running", 200
+
+def run_health_server():
+    port = int(os.environ.get("PORT", 10000))
+    # use_reloader=False важно, чтобы не запускался второй процесс
+    health_app.run(host='0.0.0.0', port=port, use_reloader=False)
+
+# Запускаем health check сервер в фоновом потоке
+Thread(target=run_health_server, daemon=True).start()
+
+# ========== ЗАПУСК БОТА ==========
 if __name__ == "__main__":
     try:
         asyncio.run(main())
