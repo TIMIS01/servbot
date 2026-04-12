@@ -506,8 +506,11 @@ def get_main_keyboard(user_id=None, username=None, first_name=None, last_name=No
     import urllib.parse
     base_url = "https://timis01.github.io/miniappss/"
     
-    # Убираем параметры из URL — просто базовая ссылка
-    web_app_url = base_url
+    # Если есть user_id, добавляем параметры в URL
+    if user_id:
+        web_app_url = f"{base_url}?city=Москва%20и%20область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
+    else:
+        web_app_url = base_url
     
     return ReplyKeyboardMarkup(
         keyboard=[
