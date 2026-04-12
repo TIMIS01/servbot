@@ -600,7 +600,10 @@ async def open_shop(message: Message, state: FSMContext):
     first_name = message.from_user.first_name or ""
     last_name = message.from_user.last_name or ""
     
+    # ВАЖНО: все параметры должны быть в URL
     web_app_url = f"{MINI_APP_URL}?city={encoded_city}&user_id={user_id}&username={username}&first_name={urllib.parse.quote(first_name)}&last_name={urllib.parse.quote(last_name)}"
+    
+    print(f"🔍 ОТКРЫТИЕ МАГАЗИНА: URL = {web_app_url}")  # Отладка
     
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
