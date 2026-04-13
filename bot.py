@@ -506,10 +506,17 @@ def get_main_keyboard(user_id=None, username=None, first_name=None, last_name=No
     import urllib.parse
     base_url = "https://timis01.github.io/miniappss/"
     
-    # Если есть user_id, добавляем параметры в URL
-    if user_id:
-        web_app_url = f"{base_url}?city=Москва%20и%20область&user_id={user_id}&username={username or ''}&first_name={urllib.parse.quote(first_name or '')}&last_name={urllib.parse.quote(last_name or '')}"
+    # Проверяем, что user_id существует и не None
+    if user_id and user_id != "None" and str(user_id) != "None":
+        # Все параметры должны быть строками, None заменяем на пустую строку
+        safe_user_id = str(user_id) if user_id else ""
+        safe_username = username or ""
+        safe_first_name = first_name or ""
+        safe_last_name = last_name or ""
+        
+        web_app_url = f"{base_url}?city=Москва%20и%20область&user_id={safe_user_id}&username={urllib.parse.quote(safe_username)}&first_name={urllib.parse.quote(safe_first_name)}&last_name={urllib.parse.quote(safe_last_name)}"
     else:
+        # Для новых пользователей без ID — используем базовую ссылку
         web_app_url = base_url
     
     return ReplyKeyboardMarkup(
