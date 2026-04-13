@@ -1411,11 +1411,18 @@ async def product_add_image_received(message: Message, state: FSMContext):
     await state.clear()
 
 async def product_list(callback: CallbackQuery):
-    """Показать список товаров (из локальной БД для отображения в боте)"""
+    """Показать список товаров (ПРИНУДИТЕЛЬНО ОБНОВЛЯЕТ С СЕРВЕРА)"""
     if not is_super_admin(callback.from_user.id):
         await callback.answer("❌ Нет прав", show_alert=True)
         return
     
+    # 1. Сообщаем, что идет загрузка
+    await callback.message.edit_text("🔄 Синхронизация товаров с сервера...")
+    
+    # 2. ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ КЕШ (делаем то же, что при /start)
+    await sync_products_from_server()
+    
+    # 3. Теперь читаем свежие данные из локальной БД
     products = get_all_products_local()
     
     if not products:
