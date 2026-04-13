@@ -36,6 +36,41 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # Загружаем переменные окружения
 load_dotenv()
 
+
+IMG_BB_API_KEY = os.getenv("IMG_BB_API_KEY")
+
+async def upload_image_to_imgbb(photo_file_id, bot):
+    """
+    Скачивает фото от пользователя и загружает его на ImgBB.
+    Возвращает постоянную прямую ссылку на изображение.
+    """
+    # 1. Получаем информацию о файле от Telegram
+    file_info = await bot.get_file(photo_file_id)
+    file_path = file_info.file_path
+
+    # 2. Скачиваем содержимое файла в память (bytes)
+    file_content = await bot.download_file(file_path, destination=None) # destination=None вернет BytesIO объект
+    file_bytes = file_content.getvalue() # Получаем байты для отправки
+
+    # 3. Загружаем байты на ImgBB
+    async with aiohttp.ClientSession() as session:
+        data = aiohttp.FormData()
+        data.add_field('key', IMG_BB_API_KEY)
+        data.add_field('image', file_bytes, filename='image.jpg')
+        # Важно: 'image' — это имя поля, которое ожидает API ImgBB.
+
+        async with session.post('https://api.imgbb.com/1/upload', data=data) as response:
+            if response.status == 200:
+                img_data = await response.json()
+                # Получаем прямую ссылку на изображение
+                permanent_url = img_data['data']['url']
+                print(f"✅ Изображение успешно загружено на ImgBB: {permanent_url}")
+                return permanent_url
+            else:
+                error_text = await response.text()
+                print(f"❌ Ошибка при загрузке на ImgBB: {response.status} - {error_text}")
+                return None
+
 # ========== НАСТРОЙКИ ==========
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8758750734:AAHw9HokfvqB3ltT6M9g289zfcNut-9TVSs")
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", "8562390004"))
@@ -1325,48 +1360,54 @@ async def product_add_price_received(message: Message, state: FSMContext):
     await state.set_state(ShopStates.product_add_image)
 
 async def product_add_image_received(message: Message, state: FSMContext):
-    """Получена картинка - ОТПРАВЛЯЕТ НА СЕРВЕР"""
+    """Получена картинка - ОТПРАВЛЯЕТ НА IMGBB И СОХРАНЯЕТ ПОСТОЯННУЮ ССЫЛКУ"""
     if not is_super_admin(message.from_user.id):
         return
-    
-    image_url = None
-    
-    if message.photo:
-        photo = message.photo[-1]
-        file = await message.bot.get_file(photo.file_id)
-        image_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
-        await message.answer("🖼️ Фото получено!")
-    elif message.text:
-        text = message.text.strip()
-        if text.lower() != 'пропустить':
-            image_url = text
-    
+
+    # Проверяем, что прислали именно фото
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте фото.")
+        return
+
+    # 1. Сообщаем пользователю, что процесс начался
+    waiting_message = await message.answer("🖼️ Получил фото. Загружаю на постоянный хостинг, это может занять пару секунд...")
+
+    # 2. Загружаем фото на ImgBB и получаем постоянную ссылку
+    #    Берём фото самого высокого качества: message.photo[-1]
+    permanent_image_url = await upload_image_to_imgbb(message.photo[-1].file_id, message.bot)
+
+    if not permanent_image_url:
+        await waiting_message.edit_text("❌ Не удалось загрузить фото на хостинг. Попробуйте ещё раз.")
+        return
+
+    # 3. Сохраняем товар в БД, используя постоянную ссылку
     data = await state.get_data()
     name = data.get('product_name')
     unit = data.get('product_unit')
     price = data.get('product_price')
-    
-    print(f"📦 Отправка товара на сервер: {name}, {price} руб / {unit}")
-    
-    success = add_product_to_server(name, price, unit, image_url, message.from_user.id)
-    
+
+    print(f"📦 Отправка товара на сервер: {name}, {price} руб / {unit}, картинка: {permanent_image_url}")
+
+    # Обратите внимание: в функцию add_product_to_server мы передаём permanent_image_url
+    success = add_product_to_server(name, price, unit, permanent_image_url, message.from_user.id)
+
     if success:
-        await message.answer(
-            f"✅ <b>Товар добавлен на сервер!</b>\n\n"
+        await waiting_message.edit_text(
+            f"✅ <b>Товар успешно добавлен на сервер с постоянной картинкой!</b>\n\n"
             f"📦 Название: {name}\n"
             f"📏 Ед. изм.: {unit}\n"
             f"💰 Цена: {price} руб / {unit}\n"
-            f"🖼️ Картинка: {'есть' if image_url else 'нет'}\n\n"
-            f"Товар появится в Mini App после обновления страницы.",
+            f"🖼️ Картинка: <a href='{permanent_image_url}'>загружена</a>\n\n"
+            f"Теперь изображение товара больше никогда не пропадёт.",
             parse_mode="HTML"
         )
     else:
-        await message.answer(
+        await waiting_message.edit_text(
             "❌ <b>Ошибка при добавлении товара на сервер!</b>\n\n"
             f"Сервер: {WEBHOOK_URL}",
             parse_mode="HTML"
         )
-    
+
     await state.clear()
 
 async def product_list(callback: CallbackQuery):
@@ -1619,33 +1660,31 @@ async def product_edit_unit_received(message: Message, state: FSMContext):
     await state.clear()
 
 async def product_edit_image_received(message: Message, state: FSMContext):
-    """Получена новая картинка - ОТПРАВЛЯЕТ НА СЕРВЕР"""
+    """Получена новая картинка - ЗАГРУЖАЕТ НА IMGBB И ОБНОВЛЯЕТ ССЫЛКУ"""
     if not is_super_admin(message.from_user.id):
         return
-    
+
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте фото.")
+        return
+
     data = await state.get_data()
     product_id = data.get('edit_product_id')
-    image_url = None
-    
-    if message.photo:
-        photo = message.photo[-1]
-        file = await message.bot.get_file(photo.file_id)
-        image_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
-        await message.answer("🖼️ Фото получено!")
-    elif message.text:
-        text = message.text.strip()
-        if text.lower() != 'пропустить':
-            image_url = text
-    
-    if image_url:
-        success = update_product_on_server(product_id, image_url=image_url)
-        if success:
-            await message.answer(f"✅ Картинка товара обновлена!")
-        else:
-            await message.answer("❌ Ошибка обновления картинки на сервере!")
+
+    waiting_message = await message.answer("🖼️ Загружаю новое фото на постоянный хостинг...")
+    permanent_image_url = await upload_image_to_imgbb(message.photo[-1].file_id, message.bot)
+
+    if not permanent_image_url:
+        await waiting_message.edit_text("❌ Не удалось загрузить фото. Попробуйте ещё раз.")
+        return
+
+    success = update_product_on_server(product_id, image_url=permanent_image_url)
+
+    if success:
+        await waiting_message.edit_text(f"✅ Картинка для товара ID {product_id} успешно обновлена на постоянную!")
     else:
-        await message.answer("❌ Не удалось обновить картинку")
-    
+        await waiting_message.edit_text("❌ Ошибка при обновлении картинки на сервере!")
+
     await state.clear()
 
 # ========== ОБРАБОТЧИКИ ДЛЯ ВЗАИМОДЕЙСТВИЯ С ПОЛЬЗОВАТЕЛЯМИ ==========
