@@ -72,7 +72,7 @@ async def upload_image_to_imgbb(photo_file_id, bot):
                 return None
 
 # ========== НАСТРОЙКИ ==========
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8758750734:AAHw9HokfvqB3ltT6M9g289zfcNut-9TVSs")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8704743605:AAHh84GQPHEYh4I6idAHIuZPWCsgx2PYwrw")
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", "8562390004"))
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://timis01.github.io/miniappss/")
 WEBHOOK_URL = "https://tg-shop-server.onrender.com"
