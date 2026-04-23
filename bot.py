@@ -1209,6 +1209,11 @@ async def handle_web_app_data(message: Message, state: FSMContext):
             promocode = data.get('promocode')
             user_id = message.from_user.id
             username = message.from_user.username or "нет username"
+
+
+print(f"🔍 DEBUG: YOOKASSA_TOKEN = {YOOKASSA_TOKEN}")  # ← добавить эту строку
+    await message.answer(f"🔍 Токен: {YOOKASSA_TOKEN[:20] if YOOKASSA_TOKEN else 'НЕТ ТОКЕНА'}")  # ← и эт
+            
             conn = sqlite3.connect('shop_bot.db')
             cursor = conn.cursor()
             cursor.execute("INSERT INTO orders (user_id, username, product_name, quantity, city, total_price, order_date) VALUES (?, ?, ?, ?, ?, ?, ?)", (user_id, username, product_name, 1, city, price, datetime.now().isoformat()))
