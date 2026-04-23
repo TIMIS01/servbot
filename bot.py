@@ -74,7 +74,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "8704743605:AAHh84GQPHEYh4I6idAHIuZPWCsgx2PYw
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", "8562390004"))
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://timis01.github.io/miniappss/")
 WEBHOOK_URL = "https://tg-shop-server.onrender.com"
-YOOKASSA_TOKEN = os.getenv("381764678:TEST:95130")
+YOOKASSA_TOKEN = "381764678:TEST:95130"
 
 CITIES = [
     "Москва и область", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
