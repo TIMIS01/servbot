@@ -1229,7 +1229,7 @@ async def handle_web_app_data(message: Message, state: FSMContext):
                 except: pass
             
             # Создаём счёт на оплату, если есть токен ЮKassa
-            if YOOKASSA_TOKEN and YOOKASSA_TOKEN != "381764678:TEST:95130":
+            if YOOKASSA_TOKEN:
                 try:
                     amount_in_kopecks = int(float(price)) * 100
                     await message.answer_invoice(
