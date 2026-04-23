@@ -1211,8 +1211,8 @@ async def handle_web_app_data(message: Message, state: FSMContext):
             username = message.from_user.username or "нет username"
 
 
-print(f"🔍 DEBUG: YOOKASSA_TOKEN = {YOOKASSA_TOKEN}")  # ← добавить эту строку
-    await message.answer(f"🔍 Токен: {YOOKASSA_TOKEN[:20] if YOOKASSA_TOKEN else 'НЕТ ТОКЕНА'}")  # ← и эт
+            print(f"🔍 DEBUG: YOOKASSA_TOKEN = {YOOKASSA_TOKEN}")  # ← добавить эту строку
+            await message.answer(f"🔍 Токен: {YOOKASSA_TOKEN[:20] if YOOKASSA_TOKEN else 'НЕТ ТОКЕНА'}")  # ← и эт
             
             conn = sqlite3.connect('shop_bot.db')
             cursor = conn.cursor()
