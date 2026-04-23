@@ -1125,8 +1125,6 @@ async def product_edit_images_received(message: Message, state: FSMContext):
     else:
         await message.answer("❌ Ошибка загрузки фото. Попробуйте другое.")
 
-
-
 async def handle_user_chatting_with_admin(message: Message, state: FSMContext):
     """Обрабатывает сообщения от пользователей, которые хотят связаться с админом"""
     print("🔍 handle_user_chatting_with_admin ВЫЗВАНА!")
@@ -1181,8 +1179,6 @@ async def handle_user_chatting_with_admin(message: Message, state: FSMContext):
     # Сбрасываем состояние
     await state.clear()
 
-
-
 # ========== ОБРАБОТЧИК ДАННЫХ ИЗ MINI APP ==========
 async def handle_web_app_data(message: Message, state: FSMContext):
     try:
@@ -1219,16 +1215,41 @@ async def handle_web_app_data(message: Message, state: FSMContext):
             cursor.execute("INSERT INTO messages (user_id, username, message_text, message_type, timestamp) VALUES (?, ?, ?, ?, ?)", (user_id, username, f"Заказ через Mini App: {product_name} = {price} руб. (г. {city})", "order", datetime.now().isoformat()))
             conn.commit()
             conn.close()
+            
             promo_text = ""
             if promocode:
                 promo_text = f"\n🎫 Промокод: {promocode['code']} ({promocode['value']}{'%' if promocode['type'] == 'percent' else ' руб'})"
                 try: requests.post(f"{WEBHOOK_URL}/api/use-promo", json={"code": promocode['code'], "user_id": user_id, "order_amount": price}, timeout=10)
                 except: pass
-            await message.answer(f"✅ Заказ через Mini App оформлен!\n\n🏙️ Город: {city}\n📦 Товар: {product_name}\n💰 Сумма: {price} руб.{promo_text}\n\nВ ближайшее время с вами свяжется менеджер.")
-            admin_message = f"🛍 НОВЫЙ ЗАКАЗ ЧЕРЕЗ MINI APP!\n\n👤 Пользователь: @{username} (ID: {user_id})\n🏙️ Город: {city}\n📦 Товар: {product_name}\n💰 Сумма: {price} руб.{promo_text}\n📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                
+            # Уведомление админу
+            admin_message = f"🛍 НОВЫЙ ЗАКАЗ!\n\n👤 @{username} (ID: {user_id})\n🏙️ {city}\n📦 {product_name}\n💰 {price} руб.{promo_text}"
             for admin_id in get_admin_ids():
                 try: await message.bot.send_message(admin_id, admin_message, reply_markup=get_admin_keyboard(user_id))
                 except: pass
+            
+            # Создаём счёт на оплату, если есть токен ЮKassa
+            if YOOKASSA_TOKEN and YOOKASSA_TOKEN != "381764678:TEST:95130":
+                try:
+                    amount_in_kopecks = int(float(price)) * 100
+                    await message.answer_invoice(
+                        title=f"Заказ: {product_name}",
+                        description=f"Товар: {product_name}",
+                        payload=f"order_{user_id}_{int(datetime.now().timestamp())}",
+                        provider_token=YOOKASSA_TOKEN,
+                        currency="RUB",
+                        prices=[LabeledPrice(label=product_name, amount=amount_in_kopecks)],
+                        need_shipping_address=True,
+                        is_flexible=False,
+                        start_parameter="order"
+                    )
+                    await message.answer("📦 Счёт сформирован! Оплатите его, чтобы завершить заказ.")
+                except Exception as e:
+                    print(f"❌ Ошибка создания счёта: {e}")
+                    await message.answer("❌ Не удалось создать счёт. Пожалуйста, попробуйте позже.")
+            else:
+                # Если токена нет - просто уведомляем
+                await message.answer("✅ Заказ оформлен! В ближайшее время с вами свяжется менеджер.")
             return
 
     except Exception as e:
@@ -1364,29 +1385,6 @@ async def cmd_cancel(message: Message, state: FSMContext):
     await message.answer("✅ Режим ответа отменен")
 
 # ========== ПЛАТЕЖИ (ЮKASSA) ==========
-async def create_order(callback: CallbackQuery):
-    if not YOOKASSA_TOKEN:
-        await callback.answer("❌ Платежи временно недоступны", show_alert=True)
-        return
-    products = get_all_products_local()
-    if not products:
-        await callback.answer("❌ Нет доступных товаров", show_alert=True)
-        return
-    product = products[0]
-    amount_in_kopecks = product[2] * 100
-    await callback.message.answer_invoice(
-        title=f"Заказ: {product[1]}",
-        description=product[3] or "Без описания",
-        payload=f"order_{callback.from_user.id}_{int(datetime.now().timestamp())}",
-        provider_token=YOOKASSA_TOKEN,
-        currency="RUB",
-        prices=[LabeledPrice(label=product[1], amount=amount_in_kopecks)],
-        need_shipping_address=True,
-        is_flexible=False,
-        start_parameter="order"
-    )
-    await callback.answer("📦 Счёт сформирован!")
-
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
     await pre_checkout_query.answer(ok=True)
 
@@ -1412,12 +1410,9 @@ def register_handlers(dp: Dispatcher):
     dp.message.register(super_admin_panel, Command("admin"))
     dp.message.register(cmd_promo, Command("promo"))
 
-
-
     dp.pre_checkout_query.register(process_pre_checkout)
     dp.message.register(process_successful_payment, F.successful_payment)
 
-    
     dp.callback_query.register(super_admin_callback, F.data.in_(["super_admin_menu", "super_admin_stats", "admin_list", "back_to_super", "promo_menu_from_admin", "product_menu_from_admin"]))
     dp.callback_query.register(admin_add_start, F.data == "admin_add")
     dp.callback_query.register(admin_remove_start, F.data == "admin_remove")
