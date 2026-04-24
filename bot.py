@@ -1037,11 +1037,11 @@ async def finalize_product_addition(message: Message, state: FSMContext, images:
     price = data.get('product_price')
     
     # Формируем красивое описание с характеристиками
-    full_description = f"""🖥️ <b>Процессор:</b> {cpu}
-🎮 <b>Видеокарта:</b> {gpu}
-🧠 <b>ОЗУ:</b> {ram}
-💾 <b>Накопитель:</b> {storage}
-⚡ <b>Блок питания:</b> {psu}
+    full_description = f"""🖥️ Процессор: {cpu}
+🎮 Видеокарта: {gpu}
+🧠 ОЗУ: {ram}
+💾 Накопитель: {storage}
+⚡ Блок питания: {psu}
 
 {description}"""
     
