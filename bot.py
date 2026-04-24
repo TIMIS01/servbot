@@ -74,7 +74,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "8704743605:AAHh84GQPHEYh4I6idAHIuZPWCsgx2PYw
 SUPER_ADMIN_ID = int(os.getenv("SUPER_ADMIN_ID", "8562390004"))
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://timis01.github.io/miniappss/")
 WEBHOOK_URL = "https://tg-shop-server.onrender.com"
-YOOKASSA_TOKEN = "381764678:TEST:95130"
+YOOKASSA_TOKEN = os.getenv("YOOKASSA_TOKEN", "")
 
 CITIES = [
     "Москва и область", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
@@ -441,7 +441,12 @@ class ShopStates(StatesGroup):
     admin_permissions = State()
     # Состояния для товаров
     product_add_name = State()
-    product_add_description = State()
+    product_add_cpu = State()          # ← Процессор
+    product_add_gpu = State()          # ← Видеокарта
+    product_add_ram = State()          # ← Оперативная память
+    product_add_storage = State()      # ← Жесткий диск
+    product_add_psu = State()          # ← Блок питания
+    product_add_description = State()  # ← Обычное описание
     product_add_price = State()
     product_add_images = State()
     product_delete = State()
@@ -920,7 +925,61 @@ async def product_add_start(callback: CallbackQuery, state: FSMContext):
 async def product_add_name_received(message: Message, state: FSMContext):
     if not is_super_admin(message.from_user.id): return
     await state.update_data(product_name=message.text.strip())
-    await message.answer("📝 Введите <b>описание</b> товара:\n(Можно использовать эмодзи и переносы строк)", parse_mode="HTML")
+    await message.answer(
+        "🖥️ Введите <b>процессор</b>:\n"
+        "Пример: <code>AMD Ryzen 7 7800X3D</code>",
+        parse_mode="HTML"
+    )
+    await state.set_state(ShopStates.product_add_cpu)
+
+async def product_add_cpu_received(message: Message, state: FSMContext):
+    if not is_super_admin(message.from_user.id): return
+    await state.update_data(product_cpu=message.text.strip())
+    await message.answer(
+        "🎮 Введите <b>видеокарту</b>:\n"
+        "Пример: <code>NVIDIA GeForce RTX 4070 Ti</code>",
+        parse_mode="HTML"
+    )
+    await state.set_state(ShopStates.product_add_gpu)
+
+async def product_add_gpu_received(message: Message, state: FSMContext):
+    if not is_super_admin(message.from_user.id): return
+    await state.update_data(product_gpu=message.text.strip())
+    await message.answer(
+        "🧠 Введите <b>оперативную память</b>:\n"
+        "Пример: <code>32 GB DDR5 Kingston Fury</code>",
+        parse_mode="HTML"
+    )
+    await state.set_state(ShopStates.product_add_ram)
+
+async def product_add_ram_received(message: Message, state: FSMContext):
+    if not is_super_admin(message.from_user.id): return
+    await state.update_data(product_ram=message.text.strip())
+    await message.answer(
+        "💾 Введите <b>жесткий диск</b>:\n"
+        "Пример: <code>SSD NVMe 1 TB Samsung 990 Pro</code>",
+        parse_mode="HTML"
+    )
+    await state.set_state(ShopStates.product_add_storage)
+
+async def product_add_storage_received(message: Message, state: FSMContext):
+    if not is_super_admin(message.from_user.id): return
+    await state.update_data(product_storage=message.text.strip())
+    await message.answer(
+        "⚡ Введите <b>блок питания</b>:\n"
+        "Пример: <code>850W DeepCool Gold</code>",
+        parse_mode="HTML"
+    )
+    await state.set_state(ShopStates.product_add_psu)
+
+async def product_add_psu_received(message: Message, state: FSMContext):
+    if not is_super_admin(message.from_user.id): return
+    await state.update_data(product_psu=message.text.strip())
+    await message.answer(
+        "📝 Теперь введите <b>дополнительное описание</b> товара:\n"
+        "(Можно использовать эмодзи и переносы строк)",
+        parse_mode="HTML"
+    )
     await state.set_state(ShopStates.product_add_description)
 
 async def product_add_description_received(message: Message, state: FSMContext):
@@ -969,11 +1028,26 @@ async def product_add_images_received(message: Message, state: FSMContext):
 async def finalize_product_addition(message: Message, state: FSMContext, images: list):
     data = await state.get_data()
     name = data.get('product_name')
-    description = data.get('product_description')
+    cpu = data.get('product_cpu', 'Не указан')
+    gpu = data.get('product_gpu', 'Не указана')
+    ram = data.get('product_ram', 'Не указана')
+    storage = data.get('product_storage', 'Не указан')
+    psu = data.get('product_psu', 'Не указан')
+    description = data.get('product_description', '')
     price = data.get('product_price')
-    success = add_product_to_server(name, price, description, images, message.from_user.id)
+    
+    # Формируем красивое описание с характеристиками
+    full_description = f"""🖥️ <b>Процессор:</b> {cpu}
+🎮 <b>Видеокарта:</b> {gpu}
+🧠 <b>ОЗУ:</b> {ram}
+💾 <b>Накопитель:</b> {storage}
+⚡ <b>Блок питания:</b> {psu}
+
+{description}"""
+    
+    success = add_product_to_server(name, price, full_description, images, message.from_user.id)
     if success:
-        add_product_local(name, price, description, images, message.from_user.id)
+        add_product_local(name, price, full_description, images, message.from_user.id)
         await message.answer(f"✅ <b>Товар добавлен!</b>\n\n📦 {name}\n💰 {price} руб.\n🖼️ Фото: {len(images)} шт.", parse_mode="HTML")
     else:
         await message.answer("❌ Ошибка при добавлении товара!")
@@ -1211,8 +1285,8 @@ async def handle_web_app_data(message: Message, state: FSMContext):
             username = message.from_user.username or "нет username"
 
 
-            print(f"🔍 DEBUG: YOOKASSA_TOKEN = {YOOKASSA_TOKEN}")  # ← добавить эту строку
-            await message.answer(f"🔍 Токен: {YOOKASSA_TOKEN[:20] if YOOKASSA_TOKEN else 'НЕТ ТОКЕНА'}")  # ← и эт
+            ##print(f"🔍 DEBUG: YOOKASSA_TOKEN = {YOOKASSA_TOKEN}")  # ← добавить эту строку
+            ## await message.answer(f"🔍 Токен: {YOOKASSA_TOKEN[:20] if YOOKASSA_TOKEN else 'НЕТ ТОКЕНА'}")  # ← и эт
             
             conn = sqlite3.connect('shop_bot.db')
             cursor = conn.cursor()
@@ -1427,6 +1501,14 @@ def register_handlers(dp: Dispatcher):
     dp.callback_query.register(toggle_permission, F.data.startswith("toggle_"))
     dp.callback_query.register(save_permissions, F.data.startswith("save_permissions_"))
     
+
+
+
+    
+
+
+
+
     dp.callback_query.register(promo_create_start, F.data == "promo_create")
     dp.callback_query.register(promo_type_selected, F.data.startswith("promo_type_"))
     dp.callback_query.register(promo_list, F.data == "promo_list")
@@ -1451,6 +1533,18 @@ def register_handlers(dp: Dispatcher):
     dp.message.register(promo_expiry_received, PromoStates.waiting_for_expiry_days)
     
     dp.message.register(product_add_name_received, ShopStates.product_add_name)
+
+
+
+
+    dp.message.register(product_add_cpu_received, ShopStates.product_add_cpu)
+    dp.message.register(product_add_gpu_received, ShopStates.product_add_gpu)
+    dp.message.register(product_add_ram_received, ShopStates.product_add_ram)
+    dp.message.register(product_add_storage_received, ShopStates.product_add_storage)
+    dp.message.register(product_add_psu_received, ShopStates.product_add_psu)
+
+
+
     dp.message.register(product_add_description_received, ShopStates.product_add_description)
     dp.message.register(product_add_price_received, ShopStates.product_add_price)
     dp.message.register(product_add_images_received, ShopStates.product_add_images)
